@@ -1,7 +1,7 @@
-﻿#include <vector>
+﻿#include <benchmark/benchmark.h>
 #include <cmath>
-#include <benchmark/benchmark.h>
 #include <hpc/HPCHighDimensionFlatArray.hpp>
+#include <vector>
 
 constexpr std::size_t m = 1 << 13;
 constexpr std::size_t n = 1 << 15;
@@ -13,431 +13,432 @@ constexpr std::size_t ny = 1 << 13;
 hpc::HPCHighDimensionFlatArray<2, float, nblur> a(nx, ny);
 hpc::HPCHighDimensionFlatArray<2, float> b(nx, ny);
 
-static void BM_AOS_partical(benchmark::State& bm) {
-          struct AOS {
-                    float x;
-                    float y;
-                    float z;
-          };
+static void BM_AOS_partical(benchmark::State &bm) {
+  struct AOS {
+    float x;
+    float y;
+    float z;
+  };
 
-          std::vector<AOS> arr(n);
-          for (auto _ : bm) {
+  std::vector<AOS> arr(n);
+  for (auto _ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n; ++i) {
-                              arr[i].x = arr[i].x + arr[i].y;
-                    }
-                    benchmark::DoNotOptimize(arr);
-          }
+    for (std::size_t i = 0; i < n; ++i) {
+      arr[i].x = arr[i].x + arr[i].y;
+    }
+    benchmark::DoNotOptimize(arr);
+  }
 }
 
-static void BM_SOA_partical(benchmark::State& bm) {
-          std::vector<float> x(n);
-          std::vector<float> y(n);
-          std::vector<float> z(n);
+static void BM_SOA_partical(benchmark::State &bm) {
+  std::vector<float> x(n);
+  std::vector<float> y(n);
+  std::vector<float> z(n);
 
-          for (auto _ : bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n; ++i) {
-                              x[i] = x[i] * y[i];
-                    }
-                    benchmark::DoNotOptimize(x);
-                    benchmark::DoNotOptimize(y);
-                    benchmark::DoNotOptimize(z);
-          }
+    for (std::size_t i = 0; i < n; ++i) {
+      x[i] = x[i] * y[i];
+    }
+    benchmark::DoNotOptimize(x);
+    benchmark::DoNotOptimize(y);
+    benchmark::DoNotOptimize(z);
+  }
 }
 
-static void BM_AOSOA_partical(benchmark::State& bm) {
-          struct AOSOA {
-                    float x[1024];
-                    float y[1024];
-                    float z[1024];
-          };
+static void BM_AOSOA_partical(benchmark::State &bm) {
+  struct AOSOA {
+    float x[1024];
+    float y[1024];
+    float z[1024];
+  };
 
-          std::vector<AOSOA> arr(n / 1024);
+  std::vector<AOSOA> arr(n / 1024);
 
-          for (auto _ : bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n / 1024; ++i) {
+    for (std::size_t i = 0; i < n / 1024; ++i) {
 #pragma omp simd
-                              for (std::size_t j = 0; j < 1024; ++j) {
-                                        arr[i].x[j] = arr[i].x[j] + arr[i].y[j];
-                              }
-                    }
-                    benchmark::DoNotOptimize(arr);
-          }
+      for (std::size_t j = 0; j < 1024; ++j) {
+        arr[i].x[j] = arr[i].x[j] + arr[i].y[j];
+      }
+    }
+    benchmark::DoNotOptimize(arr);
+  }
 }
 
-static void BM_AOS_all_properties(benchmark::State& bm) {
-          struct AOS {
-                    float x, y, z;
-          };
-          std::vector<AOS> arr(n);
+static void BM_AOS_all_properties(benchmark::State &bm) {
+  struct AOS {
+    float x, y, z;
+  };
+  std::vector<AOS> arr(n);
 
-          for (auto _ : bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n; ++i) {
-                              arr[i].x += sin(i);
-                              arr[i].y += sin(i+1);
-                              arr[i].z += sin(i+2);
-                    }
-                    benchmark::DoNotOptimize(arr);
-          }
+    for (std::size_t i = 0; i < n; ++i) {
+      arr[i].x += sin(i);
+      arr[i].y += sin(i + 1);
+      arr[i].z += sin(i + 2);
+    }
+    benchmark::DoNotOptimize(arr);
+  }
 }
 
-static void BM_SOA_all_properties(benchmark::State& bm) {
-          std::vector<float> x(n);
-          std::vector<float> y(n);
-          std::vector<float> z(n);
+static void BM_SOA_all_properties(benchmark::State &bm) {
+  std::vector<float> x(n);
+  std::vector<float> y(n);
+  std::vector<float> z(n);
 
-          for (auto _ : bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n; ++i) {
-                              x[i] += sin(i);
-                              y[i] += sin(i+1);
-                              z[i] += sin(i+2);
-                    }
-                    benchmark::DoNotOptimize(x);
-                    benchmark::DoNotOptimize(y);
-                    benchmark::DoNotOptimize(z);
-          }
+    for (std::size_t i = 0; i < n; ++i) {
+      x[i] += sin(i);
+      y[i] += sin(i + 1);
+      z[i] += sin(i + 2);
+    }
+    benchmark::DoNotOptimize(x);
+    benchmark::DoNotOptimize(y);
+    benchmark::DoNotOptimize(z);
+  }
 }
 
-static void BM_AOSOA_all_properties(benchmark::State& bm) {
-          struct AOSOA {
-                    float x[1024];
-                    float y[1024];
-                    float z[1024];
-          };
-          std::vector<AOSOA> arr(n / 1024);
+static void BM_AOSOA_all_properties(benchmark::State &bm) {
+  struct AOSOA {
+    float x[1024];
+    float y[1024];
+    float z[1024];
+  };
+  std::vector<AOSOA> arr(n / 1024);
 
-          for (auto _ : bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n / 1024; ++i) {
+    for (std::size_t i = 0; i < n / 1024; ++i) {
 #pragma omp simd
-                              for (std::size_t j = 0; j < 1024; ++j) {
-                                        arr[i].x[j] += sin(j);
-                                        arr[i].y[j] += sin(j);
-                                        arr[i].z[j] += sin(j);
-                              }
-                    }
-                    benchmark::DoNotOptimize(arr);
-          }
+      for (std::size_t j = 0; j < 1024; ++j) {
+        arr[i].x[j] += sin(j);
+        arr[i].y[j] += sin(j);
+        arr[i].z[j] += sin(j);
+      }
+    }
+    benchmark::DoNotOptimize(arr);
+  }
 }
 
-static void BM_ordered(benchmark::State& bm) {
-          for (auto& _ : bm) {
+static void BM_ordered(benchmark::State &bm) {
+  for (auto &_ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n; ++i) {
-                              benchmark::DoNotOptimize(arr[i]);
-                    }
-                    benchmark::DoNotOptimize(arr);
-          }
+    for (std::size_t i = 0; i < n; ++i) {
+      benchmark::DoNotOptimize(arr[i]);
+    }
+    benchmark::DoNotOptimize(arr);
+  }
 }
 
-static void BM_random(benchmark::State& bm) {
-          for (auto& _ : bm) {
+static void BM_random(benchmark::State &bm) {
+  for (auto &_ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n; ++i) {
-                              benchmark::DoNotOptimize(arr[rand() % n]);
-                    }
-                    benchmark::DoNotOptimize(arr);
-          }
+    for (std::size_t i = 0; i < n; ++i) {
+      benchmark::DoNotOptimize(arr[rand() % n]);
+    }
+    benchmark::DoNotOptimize(arr);
+  }
 }
 
-static void BM_random_64B(benchmark::State& bm) {
-          for (auto& _ : bm) {
+static void BM_random_64B(benchmark::State &bm) {
+  for (auto &_ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n / 16; ++i) {
-                              auto r = rand() % (n / 16);
-                              for (std::size_t j = 0; j < 16; ++j) {
-                                        benchmark::DoNotOptimize(arr[16 * r + j]);
-                              }
-                    }
-                    benchmark::DoNotOptimize(arr);
-          }
+    for (std::size_t i = 0; i < n / 16; ++i) {
+      auto r = rand() % (n / 16);
+      for (std::size_t j = 0; j < 16; ++j) {
+        benchmark::DoNotOptimize(arr[16 * r + j]);
+      }
+    }
+    benchmark::DoNotOptimize(arr);
+  }
 }
 
-static void BM_random_64B_prefetch(benchmark::State& bm) {
-          for (auto& _ : bm) {
+static void BM_random_64B_prefetch(benchmark::State &bm) {
+  for (auto &_ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n / 16; ++i) {
-                              auto r = rand() % (n / 16);
-                              _mm_prefetch(reinterpret_cast<const char*>(&arr[16 * (r + 1)]), _MM_HINT_T0);
-                              for (std::size_t j = 0; j < 16; ++j) {
-                                        benchmark::DoNotOptimize(arr[16 * r + j]);
-                              }
-                    }
-                    benchmark::DoNotOptimize(arr);
-          }
+    for (std::size_t i = 0; i < n / 16; ++i) {
+      auto r = rand() % (n / 16);
+      _mm_prefetch(reinterpret_cast<const char *>(&arr[16 * (r + 1)]),
+                   _MM_HINT_T0);
+      for (std::size_t j = 0; j < 16; ++j) {
+        benchmark::DoNotOptimize(arr[16 * r + j]);
+      }
+    }
+    benchmark::DoNotOptimize(arr);
+  }
 }
 
 constexpr uint64_t block = 4096;
-static void BM_random_4096B(benchmark::State& bm) {
-          for (auto& _ : bm) {
+static void BM_random_4096B(benchmark::State &bm) {
+  for (auto &_ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n / block; ++i) {
-                              auto r = rand() % (n / block);
+    for (std::size_t i = 0; i < n / block; ++i) {
+      auto r = rand() % (n / block);
 #pragma omp simd
-                              for (std::size_t j = 0; j < block; ++j)
-                                        benchmark::DoNotOptimize(arr[block * r + j]);
+      for (std::size_t j = 0; j < block; ++j)
+        benchmark::DoNotOptimize(arr[block * r + j]);
 
-                              benchmark::DoNotOptimize(arr);
-                    }
-          }
+      benchmark::DoNotOptimize(arr);
+    }
+  }
 }
 
-static void BM_random_4KB_align(benchmark::State& bm) {
-          float* a = (float*)_mm_malloc(n * sizeof(float), block);
-          memset(a, 0, n * sizeof(float));
+static void BM_random_4KB_align(benchmark::State &bm) {
+  float *a = (float *)_mm_malloc(n * sizeof(float), block);
+  memset(a, 0, n * sizeof(float));
 
-          for (auto& _ : bm) {
+  for (auto &_ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n / block; ++i) {
-                              auto r = rand() % (n / block);
+    for (std::size_t i = 0; i < n / block; ++i) {
+      auto r = rand() % (n / block);
 #pragma omp simd
-                              for (std::size_t j = 0; j < block; ++j)
-                                        benchmark::DoNotOptimize(a[block * r + j]);
+      for (std::size_t j = 0; j < block; ++j)
+        benchmark::DoNotOptimize(a[block * r + j]);
 
-                              benchmark::DoNotOptimize(arr);
-                    }
-          }
-          _mm_free(a);
+      benchmark::DoNotOptimize(arr);
+    }
+  }
+  _mm_free(a);
 }
 
-static void BM_write(benchmark::State& bm) {
-          for (auto& _ : bm) {
+static void BM_write(benchmark::State &bm) {
+  for (auto &_ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n; ++i) {
-                              arr[i] = 1;
-                    }
-                    benchmark::DoNotOptimize(arr);
-          }
+    for (std::size_t i = 0; i < n; ++i) {
+      arr[i] = 1;
+    }
+    benchmark::DoNotOptimize(arr);
+  }
 }
 
-static void BM_write_streamed(benchmark::State& bm) {
-          for (auto& _ : bm) {
+static void BM_write_streamed(benchmark::State &bm) {
+  for (auto &_ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n; ++i) {
-                              float value = 1;
-                              _mm_stream_si32((int*)&arr[i], *(int*)&value);
-                    }
-                    benchmark::DoNotOptimize(arr);
-          }
+    for (std::size_t i = 0; i < n; ++i) {
+      float value = 1;
+      _mm_stream_si32((int *)&arr[i], *(int *)&value);
+    }
+    benchmark::DoNotOptimize(arr);
+  }
 }
 
-static void BM_write_streamed_and_read(benchmark::State& bm) {
-          for (auto& _ : bm) {
+static void BM_write_streamed_and_read(benchmark::State &bm) {
+  for (auto &_ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n; ++i) {
-                              float value = 1;
-                              _mm_stream_si32((int*)&arr[i], *(int*)&value);
-                              benchmark::DoNotOptimize(arr[i]);       //read again
-                    }
-                    benchmark::DoNotOptimize(arr);
-          }
+    for (std::size_t i = 0; i < n; ++i) {
+      float value = 1;
+      _mm_stream_si32((int *)&arr[i], *(int *)&value);
+      benchmark::DoNotOptimize(arr[i]); // read again
+    }
+    benchmark::DoNotOptimize(arr);
+  }
 }
 
-static void BM_read_and_write(benchmark::State& bm) {
-          for (auto& _ : bm) {
+static void BM_read_and_write(benchmark::State &bm) {
+  for (auto &_ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n; ++i) {
-                              arr[i] = arr[i] + 1;
-                    }
-                    benchmark::DoNotOptimize(arr);
-          }
+    for (std::size_t i = 0; i < n; ++i) {
+      arr[i] = arr[i] + 1;
+    }
+    benchmark::DoNotOptimize(arr);
+  }
 }
 
-static void BM_write_zero(benchmark::State& bm) {
-          for (auto& _ : bm) {
+static void BM_write_zero(benchmark::State &bm) {
+  for (auto &_ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n; ++i) {
-                              arr[i] = 0;
-                    }
-                    benchmark::DoNotOptimize(arr);
-          }
+    for (std::size_t i = 0; i < n; ++i) {
+      arr[i] = 0;
+    }
+    benchmark::DoNotOptimize(arr);
+  }
 }
 
-static void BM_write_one(benchmark::State& bm) {
-          for (auto& _ : bm) {
+static void BM_write_one(benchmark::State &bm) {
+  for (auto &_ : bm) {
 #pragma omp parallel for
-                    for (std::size_t i = 0; i < n; ++i) {
-                              arr[i] = 1;
-                    }
-                    benchmark::DoNotOptimize(arr);
-          }
+    for (std::size_t i = 0; i < n; ++i) {
+      arr[i] = 1;
+    }
+    benchmark::DoNotOptimize(arr);
+  }
 }
 
-static void BM_origin(benchmark::State& bm) {
-          int* m = new int[n];
-          for (auto& _ : bm) {
-                    for (std::size_t i = 0; i < n; ++i) {
-                              m[i] = 1;
-                    }
-          }
-          delete[]m;
+static void BM_origin(benchmark::State &bm) {
+  int *m = new int[n];
+  for (auto &_ : bm) {
+    for (std::size_t i = 0; i < n; ++i) {
+      m[i] = 1;
+    }
+  }
+  delete[] m;
 }
 
-static void BM_init(benchmark::State& bm) {
-          int* m = new int[n] {};
-          for (auto& _ : bm) {
-                    for (std::size_t i = 0; i < n; ++i) {
-                              m[i] = 1;
-                    }
-          }
-          delete[]m;
+static void BM_init(benchmark::State &bm) {
+  int *m = new int[n]{};
+  for (auto &_ : bm) {
+    for (std::size_t i = 0; i < n; ++i) {
+      m[i] = 1;
+    }
+  }
+  delete[] m;
 }
 
-static void BM_java_style(benchmark::State& bm) {
-          for (auto _ : bm) {
-                    std::vector<std::vector<std::vector<float>>>
-                              dimension(n, std::vector<std::vector<float>>(n, std::vector<float>(n)));
-                    benchmark::DoNotOptimize(dimension);
-          }
+static void BM_java_style(benchmark::State &bm) {
+  for (auto _ : bm) {
+    std::vector<std::vector<std::vector<float>>> dimension(
+        n, std::vector<std::vector<float>>(n, std::vector<float>(n)));
+    benchmark::DoNotOptimize(dimension);
+  }
 }
 
-static void BM_flat(benchmark::State& bm) {
-          std::vector<float> flat(n * n * n);
-          for (auto _ : bm) {
-                    std::vector<float> flat(n * n * n);
-                    benchmark::DoNotOptimize(flat);
-          }
+static void BM_flat(benchmark::State &bm) {
+  std::vector<float> flat(n * n * n);
+  for (auto _ : bm) {
+    std::vector<float> flat(n * n * n);
+    benchmark::DoNotOptimize(flat);
+  }
 }
 
-static void BM_XY(benchmark::State& bm) {
-          std::vector<float> matrix2d(nx * ny);
-          for (auto _ : bm) {
+static void BM_XY(benchmark::State &bm) {
+  std::vector<float> matrix2d(nx * ny);
+  for (auto _ : bm) {
 #pragma omp parallel for collapse(2)
-                    for (std::size_t x= 0; x < nx; ++x) {
-                              for (std::size_t y = 0; y < ny; ++y) {
-                                        matrix2d[x + y * nx] = 1.f;
-                              }
-                    }
-                    benchmark::DoNotOptimize(matrix2d);
-          }
+    for (std::size_t x = 0; x < nx; ++x) {
+      for (std::size_t y = 0; y < ny; ++y) {
+        matrix2d[x + y * nx] = 1.f;
+      }
+    }
+    benchmark::DoNotOptimize(matrix2d);
+  }
 }
 
-static void BM_YX(benchmark::State& bm) {
-          std::vector<float> matrix2d(nx * ny);
-          for (auto _ : bm) {
+static void BM_YX(benchmark::State &bm) {
+  std::vector<float> matrix2d(nx * ny);
+  for (auto _ : bm) {
 #pragma omp parallel for collapse(2)
-                    for (std::size_t y = 0; y < ny; ++y) {
-                              for (std::size_t x = 0; x < nx; ++x) {
-                                        matrix2d[x + y * nx] = 1.f;
-                              }
-                    }
-                    benchmark::DoNotOptimize(matrix2d);
-          }
+    for (std::size_t y = 0; y < ny; ++y) {
+      for (std::size_t x = 0; x < nx; ++x) {
+        matrix2d[x + y * nx] = 1.f;
+      }
+    }
+    benchmark::DoNotOptimize(matrix2d);
+  }
 }
 
-static void BM_x_blur(benchmark::State& bm){
-          for (auto _ : bm) {
+static void BM_x_blur(benchmark::State &bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for collapse(2)
-                    for (int y = 0; y < ny; ++y) {
-                              for (int x = 0; x < nx; ++x) {
-                                        float res = { 0.f };
-                                        for (int blur = -nblur; blur <= nblur; ++blur) {
-                                                  res += a(y, x + blur);
-                                        }
-                                        b(y, x) = res;
-                              }
-                    }
-                    benchmark::DoNotOptimize(a);
-          }
+    for (int y = 0; y < ny; ++y) {
+      for (int x = 0; x < nx; ++x) {
+        float res = {0.f};
+        for (int blur = -nblur; blur <= nblur; ++blur) {
+          res += a(y, x + blur);
+        }
+        b(y, x) = res;
+      }
+    }
+    benchmark::DoNotOptimize(a);
+  }
 }
 
-static void BM_x_blur_prefetch(benchmark::State& bm) {
-          for (auto _ : bm) {
+static void BM_x_blur_prefetch(benchmark::State &bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for collapse(2)
-                    for (int y = 0; y < ny; ++y) {
-                              for (int x = 0; x < nx; ++x) {
-                                        float res = { 0.f };
-                                        _mm_prefetch((const char*)&a( y, x + 2 * nblur), _MM_HINT_T0);
-                                        for (int blur = -nblur; blur <= nblur; ++blur) {
-                                                  res += a(y, x + blur);
-                                        }
-                                        b(y, x) = res;
-                              }
-                    }
-                    benchmark::DoNotOptimize(a);
-          }
+    for (int y = 0; y < ny; ++y) {
+      for (int x = 0; x < nx; ++x) {
+        float res = {0.f};
+        _mm_prefetch((const char *)&a(y, x + 2 * nblur), _MM_HINT_T0);
+        for (int blur = -nblur; blur <= nblur; ++blur) {
+          res += a(y, x + blur);
+        }
+        b(y, x) = res;
+      }
+    }
+    benchmark::DoNotOptimize(a);
+  }
 }
 
-static void BM_x_blur_cond_prefetch(benchmark::State& bm) {
-          for (auto _ : bm) {
+static void BM_x_blur_cond_prefetch(benchmark::State &bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for collapse(2)
-                    for (int y = 0; y < ny; ++y) {
-                              for (int x = 0; x < nx; ++x) {
-                                        float res = { 0.f };
-                                        if (x % 16) {
-                                                  _mm_prefetch((const char*)&a(y, x + 2 * nblur), _MM_HINT_T0);
-                                        }
-                                        for (int blur = -nblur; blur <= nblur; ++blur) {
-                                                  res += a(y, x + blur);
-                                        }
-                                        b(y, x) = res;
-                              }
-                    }
-                    benchmark::DoNotOptimize(a);
-          }
+    for (int y = 0; y < ny; ++y) {
+      for (int x = 0; x < nx; ++x) {
+        float res = {0.f};
+        if (x % 16) {
+          _mm_prefetch((const char *)&a(y, x + 2 * nblur), _MM_HINT_T0);
+        }
+        for (int blur = -nblur; blur <= nblur; ++blur) {
+          res += a(y, x + blur);
+        }
+        b(y, x) = res;
+      }
+    }
+    benchmark::DoNotOptimize(a);
+  }
 }
 
-static void BM_x_blur_tiling_prefetch(benchmark::State& bm) {
-          for (auto _ : bm) {
+static void BM_x_blur_tiling_prefetch(benchmark::State &bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for collapse(2)
-                    for (int y = 0; y < ny; ++y) {
-                              for (int xBase = 0; xBase < static_cast<int>(nx); xBase += 2 * nblur) {
-                                        float res = { 0.f };
-                                        _mm_prefetch((const char*)&a(y, xBase + 2 * nblur), _MM_HINT_T0);
-                                        for (int x = xBase; x < xBase + 2 * nblur; ++x) {
-                                                  for (int blur = -nblur; blur <= nblur; ++blur) {
-                                                            res += a(y, x + blur);
-                                                  }
-                                                  b(y, x) = res;
-                                        }
-                              }
-                    }
-                    benchmark::DoNotOptimize(a);
+    for (int y = 0; y < ny; ++y) {
+      for (int xBase = 0; xBase < static_cast<int>(nx); xBase += 2 * nblur) {
+        float res = {0.f};
+        _mm_prefetch((const char *)&a(y, xBase + 2 * nblur), _MM_HINT_T0);
+        for (int x = xBase; x < xBase + 2 * nblur; ++x) {
+          for (int blur = -nblur; blur <= nblur; ++blur) {
+            res += a(y, x + blur);
           }
+          b(y, x) = res;
+        }
+      }
+    }
+    benchmark::DoNotOptimize(a);
+  }
 }
 
-static void BM_x_blur_tiling_simd_prefetch(benchmark::State& bm) {
-          for (auto _ : bm) {
+static void BM_x_blur_tiling_simd_prefetch(benchmark::State &bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for collapse(2)
-                    for (int y = 0; y < ny; ++y) {
-                              for (int xBase = 0; xBase < static_cast<int>(nx); xBase += 2 * nblur) {
-                                        _mm_prefetch((const char*)&a(y, xBase + 2 * nblur), _MM_HINT_T0);
-                                        for (int x = xBase; x < xBase + 2 * nblur; x += 4) {
-                                                  __m128 res = _mm_setzero_ps();
-                                                  for (int blur = -nblur; blur <= nblur; ++blur)
-                                                            res = _mm_add_ps(_mm_loadu_ps(&a(y, x + blur)), res);
-                                                  _mm_stream_ps(&b(y, x), res);
-                                        }
-                              }
-                    }
-                    benchmark::DoNotOptimize(a);
-          }
+    for (int y = 0; y < ny; ++y) {
+      for (int xBase = 0; xBase < static_cast<int>(nx); xBase += 2 * nblur) {
+        _mm_prefetch((const char *)&a(y, xBase + 2 * nblur), _MM_HINT_T0);
+        for (int x = xBase; x < xBase + 2 * nblur; x += 4) {
+          __m128 res = _mm_setzero_ps();
+          for (int blur = -nblur; blur <= nblur; ++blur)
+            res = _mm_add_ps(_mm_loadu_ps(&a(y, x + blur)), res);
+          _mm_stream_ps(&b(y, x), res);
+        }
+      }
+    }
+    benchmark::DoNotOptimize(a);
+  }
 }
 
-//BENCHMARK(BM_AOS_partical);
-//BENCHMARK(BM_SOA_partical);
-//BENCHMARK(BM_AOSOA_partical);
-//BENCHMARK(BM_AOS_all_properties);
-//BENCHMARK(BM_SOA_all_properties);
-//BENCHMARK(BM_ordered);
-//BENCHMARK(BM_random_64B);
-//BENCHMARK(BM_random_4096B);
-//BENCHMARK(BM_random_4KB_align);
-//BENCHMARK(BM_random_64B);
-//BENCHMARK(BM_random_64B_prefetch);
-//BENCHMARK(BM_read);
-//BENCHMARK(BM_read_and_write);
-//BENCHMARK(BM_write);
-//BENCHMARK(BM_write_streamed);
-//BENCHMARK(BM_write_streamed_and_read);
-//BENCHMARK(BM_write_zero);
-//BENCHMARK(BM_write_one);
-//BENCHMARK(BM_java_style);
-//BENCHMARK(BM_flat);
+// BENCHMARK(BM_AOS_partical);
+// BENCHMARK(BM_SOA_partical);
+// BENCHMARK(BM_AOSOA_partical);
+// BENCHMARK(BM_AOS_all_properties);
+// BENCHMARK(BM_SOA_all_properties);
+// BENCHMARK(BM_ordered);
+// BENCHMARK(BM_random_64B);
+// BENCHMARK(BM_random_4096B);
+// BENCHMARK(BM_random_4KB_align);
+// BENCHMARK(BM_random_64B);
+// BENCHMARK(BM_random_64B_prefetch);
+// BENCHMARK(BM_read);
+// BENCHMARK(BM_read_and_write);
+// BENCHMARK(BM_write);
+// BENCHMARK(BM_write_streamed);
+// BENCHMARK(BM_write_streamed_and_read);
+// BENCHMARK(BM_write_zero);
+// BENCHMARK(BM_write_one);
+// BENCHMARK(BM_java_style);
+// BENCHMARK(BM_flat);
 BENCHMARK(BM_x_blur);
 BENCHMARK(BM_x_blur_prefetch);
 BENCHMARK(BM_x_blur_cond_prefetch);
