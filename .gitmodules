@@ -1,0 +1,6 @@
+[submodule "external/benchmark"]
+	path = external/benchmark
+	url = https://github.com/google/benchmark
+[submodule "external/tbb"]
+	path = external/tbb
+	url = https://github.com/uxlfoundation/oneTBB
