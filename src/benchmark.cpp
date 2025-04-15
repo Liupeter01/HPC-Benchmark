@@ -419,6 +419,261 @@ static void BM_x_blur_tiling_simd_prefetch(benchmark::State &bm) {
   }
 }
 
+constexpr int blockSize = 32;
+static void BM_y_blur(benchmark::State& bm) {
+          for (auto _ : bm) {
+#pragma omp parallel for collapse(2)
+                    for (int y = 0; y < ny; ++y) {
+                              for (int x = 0; x < nx; ++x) {
+                                        float res = { 0.f };
+                                        for (int blur = -nblur; blur <= nblur; ++blur)
+                                                  res += a(y + blur, x);
+                                        b(y, x) = res;
+                              }
+                    }
+                    benchmark::DoNotOptimize(a);
+          }
+}
+
+static void BM_y_blur_tiling(benchmark::State& bm) {
+          for (auto _ : bm) {
+#pragma omp parallel for collapse(2)
+                    for (int yBase = 0; yBase < ny; yBase += blockSize) {
+                              for (int xBase = 0; xBase < nx; xBase += blockSize) {
+                                        for (int y = yBase; y < yBase + blockSize; ++y) {
+                                                  for (int x = xBase; x < xBase + blockSize; ++x) {
+                                                            float res = {};
+                                                            for (int blur = -nblur; blur <= nblur; ++blur)
+                                                                      res += a(y + blur, x);
+                                                            b(y, x) = res;
+                                                  }
+                                        }
+                              }
+
+                    }
+                    benchmark::DoNotOptimize(a);
+          }
+}
+
+static void BM_XYx_blur_tiling(benchmark::State& bm) {
+          for (auto _ : bm) {
+#pragma omp parallel for collapse(2)
+                    for (int xBase = 0; xBase < nx; xBase += blockSize) {
+                              for (int y = 0; y < ny; ++y) {
+                                        for (int x = xBase; x < xBase + blockSize; ++x) {
+                                                  float res = {};
+                                                  for (int blur = -nblur; blur <= nblur; ++blur)
+                                                            res += a(y + blur, x);
+                                                  b(y, x) = res;
+                                        }
+                              }
+                    }
+                    benchmark::DoNotOptimize(a);
+          }
+}
+
+static void BM_YXx_blur_tiling(benchmark::State& bm) {
+          for (auto _ : bm) {
+#pragma omp parallel for collapse(2)
+                    for (int y = 0; y < ny; ++y) {
+                              for (int xBase = 0; xBase < nx; xBase += blockSize) {
+                                        for (int x = xBase; x < xBase + blockSize; ++x) {
+                                                  float res = {};
+                                                  for (int blur = -nblur; blur <= nblur; ++blur)
+                                                            res += a(y + blur, x);
+                                                  b(y, x) = res;
+                                        }
+                              }
+
+                    }
+                    benchmark::DoNotOptimize(a);
+          }
+}
+
+static void BM_YXx_blur_tiling_prefetch(benchmark::State& bm) {
+          for (auto _ : bm) {
+#pragma omp parallel for collapse(2)
+                    for (int y = 0; y < ny; ++y) {
+                              for (int xBase = 0; xBase < nx; xBase += blockSize) {
+                                        _mm_prefetch((const char*)&a(y + nblur, xBase), _MM_HINT_T0);
+                                        for (int x = xBase; x < xBase + blockSize; ++x) {
+                                                  float res = {};
+                                                  for (int blur = -nblur; blur <= nblur; ++blur)
+                                                            res += a(y + blur, x);
+                                                  b(y, x) = res;
+                                        }
+                              }
+                    }
+                    benchmark::DoNotOptimize(a);
+          }
+}
+
+static void BM_YXx_blur_tiling_prefetch_streamed(benchmark::State& bm) {
+          for (auto _ : bm) {
+#pragma omp parallel for collapse(2)
+                    for (int y = 0; y < ny; ++y) {
+                              for (int xBase = 0; xBase < nx; xBase += blockSize) {
+                                        _mm_prefetch((const char*)&a(y + nblur, xBase), _MM_HINT_T0);
+                                        for (int x = xBase; x < xBase + blockSize; ++x) {
+                                                  float res = {};
+                                                  for (int blur = -nblur; blur <= nblur; ++blur)
+                                                            res += a(y + blur, x);
+                                                  _mm_stream_si32((int*)&b(y, x), res);
+                                        }
+                              }
+                    }
+                    benchmark::DoNotOptimize(a);
+          }
+}
+
+static void BM_YXx_blur_tiling_prefetch_streamed_merged(benchmark::State& bm) {
+          for (auto _ : bm) {
+#pragma omp parallel for collapse(2)
+                    for (int y = 0; y < ny; ++y) {
+                              for (int xBase = 0; xBase < nx; xBase += blockSize) {
+                                        _mm_prefetch((const char*)&a(y + nblur, xBase), _MM_HINT_T0);
+                                        for (int x = xBase; x < xBase + blockSize; x += 16) {
+                                                  __m128 res[4];
+                                                  for (int offset = 0; offset < 4; ++offset) {
+                                                            for (int blur = -nblur; blur <= nblur; ++blur) {
+                                                                      res[offset] = _mm_setzero_ps();
+                                                                      res[offset] = _mm_add_ps(res[offset], _mm_load_ps((const float*)&a(y + blur, x + offset * 4)));
+                                                            }
+                                                  }
+                                                  for (int offset = 0; offset < 4; offset ++) {
+                                                            _mm_stream_ps(&b(y, x + offset * 4), res[offset]);
+                                                  }
+                                        }
+                              }
+                    }
+                    benchmark::DoNotOptimize(a);
+          }
+}
+
+static void BM_YXx_blur_tiling_prefetch_streamed_IPL (benchmark::State& bm) {
+          for (auto _ : bm) {
+#pragma omp parallel for collapse(2)
+                    for (int y = 0; y < ny; ++y) {
+                              for (int xBase = 0; xBase < nx; xBase += blockSize) {
+                                        _mm_prefetch((const char*)&a(y + nblur, xBase), _MM_HINT_T0);
+                                        for (int x = xBase; x < xBase + blockSize; x += 16) {
+                                                  __m128 res[4];
+#pragma loop( unroll(4) )
+                                                  for (int offset = 0; offset < 4; ++offset) {
+                                                            res[offset] = _mm_setzero_ps();
+                                                  }
+                                                  for (int blur = -nblur; blur <= nblur; ++blur) {
+#pragma loop( unroll(4) )
+                                                            for (int offset = 0; offset < 4; ++offset) {
+                                                                      res[offset] = _mm_add_ps(res[offset], 
+                                                                                _mm_load_ps((const float*)&a(y + blur, x + offset * 4)));
+                                                            }
+                                                  }
+#pragma loop( unroll(4) )
+                                                  for (int offset = 0; offset < 4; offset ++) {
+                                                            _mm_stream_ps(&b(y, x + offset * 4), res[offset]);
+                                                  }
+                                        }
+                              }
+                    }
+                    benchmark::DoNotOptimize(a);
+          }
+}
+
+hpc::HPCHighDimensionFlatArray<2, float, nblur, nblur, 32> a_avx(nx, ny);
+hpc::HPCHighDimensionFlatArray<2, float, 0, 0, 32> b_avx(nx, ny);
+
+static void BM_YXx_blur_tiling_prefetch_streamed_AVX2(benchmark::State& bm) {
+          for (auto _ : bm) {
+#pragma omp parallel for collapse(2)
+                    for (int y = 0; y < ny; ++y) {
+                              for (int x = 0; x < nx - 32 + 1; x += 32) {
+                                        __m256 res[4];
+                                        _mm_prefetch((const char*)&a_avx(y + nblur, x), _MM_HINT_T0);
+                                        _mm_prefetch((const char*)&a_avx(y + nblur, x + 16), _MM_HINT_T0);
+#pragma loop( unroll(4) )
+                                        for (int offset = 0; offset < 4; ++offset) {
+                                                  res[offset] = _mm256_setzero_ps();
+                                        }
+
+                                        for (int blur = -nblur; blur <= nblur; ++blur) {
+#pragma loop( unroll(4) )
+                                                  for (int offset = 0; offset < 4; ++offset) {
+                                                            res[offset] = _mm256_add_ps(res[offset],
+                                                                      _mm256_load_ps((const float*)&a_avx(y + blur, x + offset * 8)));
+                                                  }
+                                        }
+#pragma loop( unroll(4) )
+                                        for (int offset = 0; offset < 4; offset++) {
+                                                  _mm256_stream_ps(&b_avx(y, x + offset * 8), res[offset]);
+                                        }
+                              }
+                    }
+                    benchmark::DoNotOptimize(a);
+          }
+}
+
+static void BM_YXx_blur_tiling_prefetch_streamed_AVX2_in_advance(benchmark::State& bm) {
+          for (auto _ : bm) {
+#pragma omp parallel for collapse(2)
+                    for (int y = 0; y < ny; ++y) {
+                              for (int x = 0; x < nx - 32 + 1; x += 32) {
+                                        __m256 res[4];
+                                        _mm_prefetch((const char*)&a_avx(y + nblur, x + 32), _MM_HINT_T0);
+                                        _mm_prefetch((const char*)&a_avx(y + nblur, x + 16 + 32), _MM_HINT_T0);
+#pragma loop( unroll(4) )
+                                        for (int offset = 0; offset < 4; ++offset) {
+                                                  res[offset] = _mm256_setzero_ps();
+                                        }
+
+                                        for (int blur = -nblur; blur <= nblur; ++blur) {
+#pragma loop( unroll(4) )
+                                                  for (int offset = 0; offset < 4; ++offset) {
+                                                            res[offset] = _mm256_add_ps(res[offset],
+                                                                      _mm256_load_ps((const float*)&a_avx(y + blur, x + offset * 8)));
+                                                  }
+                                        }
+#pragma loop( unroll(4) )
+                                        for (int offset = 0; offset < 4; offset++) {
+                                                  _mm256_stream_ps(&b_avx(y, x + offset * 8), res[offset]);
+                                        }
+                              }
+                    }
+                    benchmark::DoNotOptimize(a);
+          }
+}
+
+hpc::HPCHighDimensionFlatArray<2, float> a_t(nx, ny);
+hpc::HPCHighDimensionFlatArray<2, float> b_t(nx, ny);
+
+static void BM_transpose(benchmark::State& bm) {
+          for (auto _ : bm) {
+#pragma omp parallel for collapse(2)
+                    for (int y = 0; y < ny; ++y) {
+                              for (int x = 0; x < nx; ++x) {
+                                        b(x, y) = a(y, x);
+                              }
+                    }
+                    benchmark::DoNotOptimize(a);
+          }
+}
+
+static void BM_transpose_tiling(benchmark::State& bm) {
+          for (auto _ : bm) {
+#pragma omp parallel for collapse(2)
+                    for (int yBase = 0; yBase < ny; yBase += blockSize) {
+                              for (int xBase = 0; xBase < nx; xBase += blockSize) {
+                                        for (int y = yBase; y < yBase + blockSize; ++y) {
+                                                  for (int x = xBase; x < xBase + blockSize; ++x) {
+                                                            b(x, y) = a(y, x);
+                                                  }
+                                        }
+                              }
+                    }
+                    benchmark::DoNotOptimize(a);
+          }
+}
+
 // BENCHMARK(BM_AOS_partical);
 // BENCHMARK(BM_SOA_partical);
 // BENCHMARK(BM_AOSOA_partical);
@@ -439,9 +694,24 @@ static void BM_x_blur_tiling_simd_prefetch(benchmark::State &bm) {
 // BENCHMARK(BM_write_one);
 // BENCHMARK(BM_java_style);
 // BENCHMARK(BM_flat);
-BENCHMARK(BM_x_blur);
-BENCHMARK(BM_x_blur_prefetch);
-BENCHMARK(BM_x_blur_cond_prefetch);
-BENCHMARK(BM_x_blur_tiling_prefetch);
-BENCHMARK(BM_x_blur_tiling_simd_prefetch);
+// 
+//BENCHMARK(BM_x_blur);
+//BENCHMARK(BM_x_blur_prefetch);
+//BENCHMARK(BM_x_blur_cond_prefetch);
+//BENCHMARK(BM_x_blur_tiling_prefetch);
+//BENCHMARK(BM_x_blur_tiling_simd_prefetch);
+
+//BENCHMARK(BM_y_blur);
+//BENCHMARK(BM_y_blur_tiling);
+//BENCHMARK(BM_XYx_blur_tiling);
+//BENCHMARK(BM_YXx_blur_tiling);
+//BENCHMARK(BM_YXx_blur_tiling_prefetch);
+//BENCHMARK(BM_YXx_blur_tiling_prefetch_streamed);
+//BENCHMARK(BM_YXx_blur_tiling_prefetch_streamed_merged);
+//BENCHMARK(BM_YXx_blur_tiling_prefetch_streamed_IPL);
+//BENCHMARK(BM_YXx_blur_tiling_prefetch_streamed_AVX2);
+//BENCHMARK(BM_YXx_blur_tiling_prefetch_streamed_AVX2_in_advance);
+
+BENCHMARK(BM_transpose);
+BENCHMARK(BM_transpose_tiling);
 BENCHMARK_MAIN();
