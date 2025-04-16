@@ -2,6 +2,7 @@
 #include <cmath>
 #include <hpc/HPCHighDimensionFlatArray.hpp>
 #include <vector>
+#include <libmorton/morton.h>
 
 constexpr std::size_t m = 1 << 13;
 constexpr std::size_t n = 1 << 15;
@@ -419,7 +420,7 @@ static void BM_x_blur_tiling_simd_prefetch(benchmark::State &bm) {
   }
 }
 
-constexpr int blockSize = 32;
+constexpr int blockSize = 64;
 static void BM_y_blur(benchmark::State& bm) {
           for (auto _ : bm) {
 #pragma omp parallel for collapse(2)
@@ -651,10 +652,10 @@ static void BM_transpose(benchmark::State& bm) {
 #pragma omp parallel for collapse(2)
                     for (int y = 0; y < ny; ++y) {
                               for (int x = 0; x < nx; ++x) {
-                                        b(x, y) = a(y, x);
+                                        b_t(x, y) = a_t(y, x);
                               }
                     }
-                    benchmark::DoNotOptimize(a);
+                    benchmark::DoNotOptimize(b);
           }
 }
 
@@ -665,12 +666,48 @@ static void BM_transpose_tiling(benchmark::State& bm) {
                               for (int xBase = 0; xBase < nx; xBase += blockSize) {
                                         for (int y = yBase; y < yBase + blockSize; ++y) {
                                                   for (int x = xBase; x < xBase + blockSize; ++x) {
-                                                            b(x, y) = a(y, x);
+                                                            b_t(x, y) = a_t(y, x);
                                                   }
                                         }
                               }
                     }
-                    benchmark::DoNotOptimize(a);
+                    benchmark::DoNotOptimize(b);
+          }
+}
+
+static void BM_transpose_tiling_morton2d(benchmark::State& bm) {
+          for (auto _ : bm) {
+#pragma omp parallel for
+                    for (int t = 0; t < (nx * ny) / (blockSize * blockSize); ++t) {
+                              uint_fast16_t xBase{}, yBase{};
+                              libmorton::morton2D_32_decode(t, xBase, yBase);
+                              xBase *= blockSize;
+                              yBase *= blockSize;
+                              for (auto y = yBase; y < yBase + blockSize; ++y) {
+                                        for (auto x = xBase; x < xBase + blockSize ; ++x) {
+                                                  b_t(x, y) = a_t(y, x);
+                                        }
+                              }
+                    }
+                    benchmark::DoNotOptimize(b);
+          }
+}
+
+static void BM_transpose_tiling_morton2d_stream(benchmark::State& bm) {
+          for (auto _ : bm) {
+#pragma omp parallel for
+                    for (int t = 0; t < (nx * ny) / (blockSize * blockSize); ++t) {
+                              uint_fast16_t xBase{}, yBase{};
+                              libmorton::morton2D_32_decode(t, xBase, yBase);
+                              xBase *= blockSize;
+                              yBase *= blockSize;
+                              for (auto y = yBase; y < yBase + blockSize; ++y) {
+                                        for (auto x = xBase; x < xBase + blockSize; x += 4) {
+                                                  _mm_stream_si32((int*)&b_t(x, y), (int&)a_t(y, x));
+                                        }
+                              }
+                    }
+                    benchmark::DoNotOptimize(b);
           }
 }
 
@@ -714,4 +751,6 @@ static void BM_transpose_tiling(benchmark::State& bm) {
 
 BENCHMARK(BM_transpose);
 BENCHMARK(BM_transpose_tiling);
+BENCHMARK(BM_transpose_tiling_morton2d);
+BENCHMARK(BM_transpose_tiling_morton2d_stream);
 BENCHMARK_MAIN();
