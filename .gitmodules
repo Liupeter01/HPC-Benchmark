@@ -4,3 +4,6 @@
 [submodule "external/tbb"]
 	path = external/tbb
 	url = https://github.com/uxlfoundation/oneTBB
+[submodule "external/libmorton"]
+	path = external/libmorton
+	url = https://github.com/Forceflow/libmorton
