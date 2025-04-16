@@ -43,8 +43,9 @@ file(GLOB_RECURSE header_file CONFIGURE_DEPENDS include/*.hpp include/*.h)
 
 add_subdirectory(external/benchmark)
 add_subdirectory(external/tbb)
+ add_subdirectory(external/libmorton)
 
 add_executable(benchmark_proj ${source_file} ${header_file})
 target_include_directories(benchmark_proj PUBLIC include)
 target_link_libraries(benchmark_proj PUBLIC ${OpenCV_LIBRARIES}
-                                            benchmark::benchmark TBB::tbb)
+                                            benchmark::benchmark TBB::tbb libmorton)
