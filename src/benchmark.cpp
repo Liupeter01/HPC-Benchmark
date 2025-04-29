@@ -888,6 +888,220 @@ static void BM_grid_unordered_block_XY_o1(benchmark::State& bm) {
           }
 }
 
+static void BM_PointerGrid_MutexLock(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    auto grid = std::make_shared<PointerGrid<bool, (1 << 11), (1 << 8)>>();
+                    float px = -100.f, py = 100.f;
+                    float vx = 0.2f, vy = -0.6f;
+
+#pragma omp parallel for
+                    for (long long time = 0; time < N; ++time) 
+                              grid->createByMutexLock(
+                                        static_cast<std::intptr_t>(std::floor(px + vx * time)), 
+                                        static_cast<std::intptr_t>(std::floor(py + vy * time)), true);
+
+                    std::atomic<std::size_t> counter{};
+                    grid->foreach([&counter](auto x, auto y, auto& value) {
+                              if (value) counter++;
+                              });
+                    benchmark::DoNotOptimize(counter);
+          }
+}
+
+static void BM_PointerGrid_DoubleCheckMutexLock(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    auto grid = std::make_shared<PointerGrid<bool, (1 << 11), (1 << 8)>>();
+                    float px = -100.f, py = 100.f;
+                    float vx = 0.2f, vy = -0.6f;
+
+#pragma omp parallel for
+                    for (long long time = 0; time < N; ++time)
+                              grid->createByMutexLock(
+                                        static_cast<std::intptr_t>(std::floor(px + vx * time)),
+                                        static_cast<std::intptr_t>(std::floor(py + vy * time)), true);
+
+                    std::atomic<std::size_t> counter{};
+                    grid->foreach([&counter](auto x, auto y, auto& value) {
+                              if (value) counter++;
+                              });
+                    benchmark::DoNotOptimize(counter);
+          }
+}
+
+static void BM_PointerGrid_SpinLock(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    auto grid = std::make_shared<PointerGrid<bool, (1 << 11), (1 << 8)>>();
+                    float px = -100.f, py = 100.f;
+                    float vx = 0.2f, vy = -0.6f;
+
+#pragma omp parallel for
+                    for (long long time = 0; time < N; ++time)
+                              grid->createBySpinLock(static_cast<std::intptr_t>(std::floor(px + vx * time)),
+                                        static_cast<std::intptr_t>(std::floor(py + vy * time)), true);
+
+                    std::atomic<std::size_t> counter{};
+                    grid->foreach([&counter](auto x, auto y, auto& value) { if (value) counter++; });
+                    benchmark::DoNotOptimize(counter);
+          }
+}
+
+static void BM_PointerGrid_Observer(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    auto grid = std::make_shared<PointerGrid<bool, (1 << 11), (1 << 8)>>();
+                    float px = -100.f, py = 100.f;
+                    float vx = 0.2f, vy = -0.6f;
+
+                    auto accessor = grid->access();
+#pragma omp parallel for firstprivate(accessor)
+                    for (long long time = 0; time < N; ++time)
+                              accessor.write(static_cast<std::intptr_t>(std::floor(px + vx * time)),
+                                        static_cast<std::intptr_t>(std::floor(py + vy * time)), true);
+
+                    std::atomic<std::size_t> counter{};
+                    grid->foreach([&counter](auto x, auto y, auto& value) { if (value) counter++; });
+                    benchmark::DoNotOptimize(counter);
+          }
+}
+
+static void BM_int64_t(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    std::vector<int64_t> arr(N);
+                    for (std::size_t i = 0; i < N; ++i) {
+                              arr[i] = i % 2;
+                    }
+                    benchmark::DoNotOptimize(arr);
+          }
+}
+static void BM_int32_t(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    std::vector<int32_t> arr(N);
+                    for (std::size_t i = 0; i < N; ++i) {
+                              arr[i] = i % 2;
+                    }
+                    benchmark::DoNotOptimize(arr);
+          }
+}
+static void BM_int8_t(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    std::vector<int8_t> arr(N);
+                    for (std::size_t i = 0; i < N; ++i) {
+                              arr[i] = i % 2;
+                    }
+                    benchmark::DoNotOptimize(arr);
+          }
+}
+
+static void BM_8bit(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    std::vector<int8_t> arr(N / 8);
+                    for (std::size_t ib = 0; ib < N / 8; ++ib) {
+                              int8_t result = {};
+                              for (std::size_t di = 0; di < 8; ++di) {
+                                        auto index = ib << 3 + di;
+                                        result |= (index & 1) << di; //index % 2 = index & 1
+                              }
+                              arr[ib] = result;
+                    }
+                    benchmark::DoNotOptimize(arr);
+          }
+}
+
+static void BM_double_calc(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    std::vector<double> arr(N);
+                    for (std::size_t i = 0; i < N; ++i) {
+                              arr[i] = i * 3.14;
+                    }
+                    benchmark::DoNotOptimize(arr);
+          }
+}
+
+static void BM_float_calc(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    std::vector<float> arr(N);
+                    for (std::size_t i = 0; i < N; ++i) {
+                              arr[i] = i * 3.14f;
+                    }
+                    benchmark::DoNotOptimize(arr);
+          }
+}
+
+static void BM_floatingpoint(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    std::vector<float> arr(N);
+#pragma omp parallel for
+                    for (std::size_t i = 0; i < N; ++i) 
+                              arr[i] = (i % 32) * 3.14f;
+
+                    float ret = 0;
+#pragma omp parallel for reduction(max:ret)
+                    for (std::size_t i = 0; i < N; ++i)
+                              ret = std::max(ret, arr[i]);
+
+                    benchmark::DoNotOptimize(ret);
+          }
+}
+
+template<typename IntegarType>
+static IntegarType float2integar(const float f, const IntegarType k) {
+          return static_cast<IntegarType>(f * static_cast<float>(k));
+}
+
+template<typename IntegarType>
+static float integar2float(const IntegarType f, const std::intptr_t  k) {
+          return static_cast<float>(f / (1.0f * k));
+}
+
+static void BM_fixedpoint_32(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    std::vector<int32_t> arr(N);
+
+#pragma omp parallel for
+                    for (std::size_t i = 0; i < N; ++i)
+                              arr[i] = float2integar((i & 31) * 3.14f, int32_t(100));
+
+                    float ret = 0;
+#pragma omp parallel for reduction(max:ret)
+                    for (std::size_t i = 0; i < N; ++i) {
+                              ret = std::max(ret, integar2float(arr[i], 100));
+                    }
+                    benchmark::DoNotOptimize(ret);
+          }
+}
+
+static void BM_fixedpoint_16(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    std::vector<int16_t> arr(N);
+
+#pragma omp parallel for
+                    for (std::size_t i = 0; i < N; ++i)
+                              arr[i] = float2integar((i & 31) * 3.14f, int16_t(100));
+
+                    float ret = 0;
+#pragma omp parallel for reduction(max:ret)
+                    for (std::size_t i = 0; i < N; ++i) {
+                              ret = std::max(ret, integar2float(arr[i], 100));
+                    }
+                    benchmark::DoNotOptimize(ret);
+          }
+}
+
+static void BM_fixedpoint_uint8(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    std::vector<uint8_t> arr(N);
+#pragma omp parallel for
+                    for (std::size_t i = 0; i < N; ++i)
+                              arr[i] = float2integar((i & 31) * 3.14f, uint8_t(2));
+
+                    float ret = 0;
+#pragma omp parallel for reduction(max:ret)
+                    for (std::size_t i = 0; i < N; ++i)
+                              ret = std::max(ret, integar2float(arr[i], uint8_t(2)));
+
+                    benchmark::DoNotOptimize(ret);
+          }
+}
+
 // BENCHMARK(BM_AOS_partical);
 // BENCHMARK(BM_SOA_partical);
 // BENCHMARK(BM_AOSOA_partical);
@@ -908,7 +1122,7 @@ static void BM_grid_unordered_block_XY_o1(benchmark::State& bm) {
 // BENCHMARK(BM_write_one);
 // BENCHMARK(BM_java_style);
 // BENCHMARK(BM_flat);
-// 
+
 //BENCHMARK(BM_x_blur);
 //BENCHMARK(BM_x_blur_prefetch);
 //BENCHMARK(BM_x_blur_cond_prefetch);
@@ -941,8 +1155,25 @@ static void BM_grid_unordered_block_XY_o1(benchmark::State& bm) {
 
 //BENCHMARK(BM_false_sharing);
 //BENCHMARK(BM_no_false_sharing);
-BENCHMARK(BM_grid_map_ologn);
-BENCHMARK(BM_grid_unordeded_normal_o1);
-BENCHMARK(BM_grid_unordered_block_XY_o1);
+//BENCHMARK(BM_grid_map_ologn);
+//BENCHMARK(BM_grid_unordeded_normal_o1);
+//BENCHMARK(BM_grid_unordered_block_XY_o1);
 
+//BENCHMARK(BM_PointerGrid_MutexLock);
+//BENCHMARK(BM_PointerGrid_DoubleCheckMutexLock);
+//BENCHMARK(BM_PointerGrid_SpinLock);
+//BENCHMARK(BM_PointerGrid_Observer);
+
+//BENCHMARK(BM_int64_t);
+//BENCHMARK(BM_int32_t);
+//BENCHMARK(BM_int8_t);
+//BENCHMARK(BM_8bit);
+
+//BENCHMARK(BM_double_calc);
+//BENCHMARK(BM_float_calc);
+
+BENCHMARK(BM_floatingpoint);
+BENCHMARK(BM_fixedpoint_32);
+BENCHMARK(BM_fixedpoint_16);
+BENCHMARK(BM_fixedpoint_uint8);
 BENCHMARK_MAIN();
