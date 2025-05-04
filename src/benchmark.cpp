@@ -1,13 +1,15 @@
 ﻿#include <benchmark/benchmark.h>
 #include <cmath>
-#include <hpc/HPCHighDimensionFlatArray.hpp>
 #include <libmorton/morton.h>
-#include <sparse/SparseDataStructure.h>
 #include <vector>
+#include <HPCHighDimensionFlatArray.hpp>
+#include <SparseDS.hpp>
 
 constexpr std::size_t m = 1 << 13;
 constexpr std::size_t n = 1 << 15;
 std::vector<float> arr(n);
+
+#define N (1024 * 1024)
 
 constexpr int nblur = 8;
 constexpr std::size_t nx = 1 << 13;
@@ -840,152 +842,152 @@ static void BM_no_false_sharing(benchmark::State &bm) {
   }
 }
 
-static void BM_grid_map_ologn(benchmark::State &bm) {
-  for (auto _ : bm) {
-    auto grid = std::make_shared<logn::Grid<bool>>();
-    float px = -100.f, py = 100.f;
-    float vx = 0.2f, vy = -0.6f;
-
-    for (std::size_t time = 0; time < N; ++time) {
-      px += vx;
-      py += vy;
-      grid->create(px, py, true);
-    }
-
-    std::size_t counter{};
-    grid->foreach ([&counter](auto x, auto y, auto &value) {
-      if (value)
-        counter++;
-    });
-    benchmark::DoNotOptimize(counter);
-  }
-}
-
-static void BM_grid_unordeded_normal_o1(benchmark::State &bm) {
-  for (auto _ : bm) {
-    auto grid = std::make_shared<o1::Grid<bool>>();
-    float px = -100.f, py = 100.f;
-    float vx = 0.2f, vy = -0.6f;
-
-    for (std::size_t time = 0; time < N; ++time) {
-      px += vx;
-      py += vy;
-      grid->create(px, py, true);
-    }
-    std::size_t counter{};
-    grid->foreach ([&counter](auto x, auto y, auto &value) {
-      if (value)
-        counter++;
-    });
-    benchmark::DoNotOptimize(counter);
-  }
-}
-
-static void BM_grid_unordered_block_XY_o1(benchmark::State &bm) {
-  for (auto _ : bm) {
-    auto grid = std::make_shared<o1::BlockGrid<bool, 16>>();
-    float px = -100.f, py = 100.f;
-    float vx = 0.2f, vy = -0.6f;
-
-    for (std::size_t time = 0; time < N; ++time) {
-      px += vx;
-      py += vy;
-      grid->create(px, py, true);
-    }
-
-    std::size_t counter{};
-    grid->foreach ([&counter](auto x, auto y, auto &value) {
-      if (value)
-        counter++;
-    });
-    benchmark::DoNotOptimize(counter);
-  }
-}
-
-static void BM_PointerGrid_MutexLock(benchmark::State &bm) {
-  for (auto _ : bm) {
-    auto grid = std::make_shared<PointerGrid<bool, (1 << 11), (1 << 8)>>();
-    float px = -100.f, py = 100.f;
-    float vx = 0.2f, vy = -0.6f;
-
-#pragma omp parallel for
-    for (long long time = 0; time < N; ++time)
-      grid->createByMutexLock(
-          static_cast<std::intptr_t>(std::floor(px + vx * time)),
-          static_cast<std::intptr_t>(std::floor(py + vy * time)), true);
-
-    std::atomic<std::size_t> counter{};
-    grid->foreach ([&counter](auto x, auto y, auto &value) {
-      if (value)
-        counter++;
-    });
-    benchmark::DoNotOptimize(counter);
-  }
-}
-
-static void BM_PointerGrid_DoubleCheckMutexLock(benchmark::State &bm) {
-  for (auto _ : bm) {
-    auto grid = std::make_shared<PointerGrid<bool, (1 << 11), (1 << 8)>>();
-    float px = -100.f, py = 100.f;
-    float vx = 0.2f, vy = -0.6f;
-
-#pragma omp parallel for
-    for (long long time = 0; time < N; ++time)
-      grid->createByMutexLock(
-          static_cast<std::intptr_t>(std::floor(px + vx * time)),
-          static_cast<std::intptr_t>(std::floor(py + vy * time)), true);
-
-    std::atomic<std::size_t> counter{};
-    grid->foreach ([&counter](auto x, auto y, auto &value) {
-      if (value)
-        counter++;
-    });
-    benchmark::DoNotOptimize(counter);
-  }
-}
-
-static void BM_PointerGrid_SpinLock(benchmark::State &bm) {
-  for (auto _ : bm) {
-    auto grid = std::make_shared<PointerGrid<bool, (1 << 11), (1 << 8)>>();
-    float px = -100.f, py = 100.f;
-    float vx = 0.2f, vy = -0.6f;
-
-#pragma omp parallel for
-    for (long long time = 0; time < N; ++time)
-      grid->createBySpinLock(
-          static_cast<std::intptr_t>(std::floor(px + vx * time)),
-          static_cast<std::intptr_t>(std::floor(py + vy * time)), true);
-
-    std::atomic<std::size_t> counter{};
-    grid->foreach ([&counter](auto x, auto y, auto &value) {
-      if (value)
-        counter++;
-    });
-    benchmark::DoNotOptimize(counter);
-  }
-}
-
-static void BM_PointerGrid_Observer(benchmark::State &bm) {
-  for (auto _ : bm) {
-    auto grid = std::make_shared<PointerGrid<bool, (1 << 11), (1 << 8)>>();
-    float px = -100.f, py = 100.f;
-    float vx = 0.2f, vy = -0.6f;
-
-    auto accessor = grid->access();
-#pragma omp parallel for firstprivate(accessor)
-    for (long long time = 0; time < N; ++time)
-      accessor.write(static_cast<std::intptr_t>(std::floor(px + vx * time)),
-                     static_cast<std::intptr_t>(std::floor(py + vy * time)),
-                     true);
-
-    std::atomic<std::size_t> counter{};
-    grid->foreach ([&counter](auto x, auto y, auto &value) {
-      if (value)
-        counter++;
-    });
-    benchmark::DoNotOptimize(counter);
-  }
-}
+//static void BM_grid_map_ologn(benchmark::State &bm) {
+//  for (auto _ : bm) {
+//    auto grid = std::make_shared<logn::Grid<bool>>();
+//    float px = -100.f, py = 100.f;
+//    float vx = 0.2f, vy = -0.6f;
+//
+//    for (std::size_t time = 0; time < N; ++time) {
+//      px += vx;
+//      py += vy;
+//      grid->create(px, py, true);
+//    }
+//
+//    std::size_t counter{};
+//    grid->foreach ([&counter](auto x, auto y, auto &value) {
+//      if (value)
+//        counter++;
+//    });
+//    benchmark::DoNotOptimize(counter);
+//  }
+//}
+//
+//static void BM_grid_unordeded_normal_o1(benchmark::State &bm) {
+//  for (auto _ : bm) {
+//    auto grid = std::make_shared<o1::Grid<bool>>();
+//    float px = -100.f, py = 100.f;
+//    float vx = 0.2f, vy = -0.6f;
+//
+//    for (std::size_t time = 0; time < N; ++time) {
+//      px += vx;
+//      py += vy;
+//      grid->create(px, py, true);
+//    }
+//    std::size_t counter{};
+//    grid->foreach ([&counter](auto x, auto y, auto &value) {
+//      if (value)
+//        counter++;
+//    });
+//    benchmark::DoNotOptimize(counter);
+//  }
+//}
+//
+//static void BM_grid_unordered_block_XY_o1(benchmark::State &bm) {
+//  for (auto _ : bm) {
+//    auto grid = std::make_shared<o1::BlockGrid<bool, 16>>();
+//    float px = -100.f, py = 100.f;
+//    float vx = 0.2f, vy = -0.6f;
+//
+//    for (std::size_t time = 0; time < N; ++time) {
+//      px += vx;
+//      py += vy;
+//      grid->create(px, py, true);
+//    }
+//
+//    std::size_t counter{};
+//    grid->foreach ([&counter](auto x, auto y, auto &value) {
+//      if (value)
+//        counter++;
+//    });
+//    benchmark::DoNotOptimize(counter);
+//  }
+//}
+//
+//static void BM_PointerGrid_MutexLock(benchmark::State &bm) {
+//  for (auto _ : bm) {
+//    auto grid = std::make_shared<PointerGrid<bool, (1 << 11), (1 << 8)>>();
+//    float px = -100.f, py = 100.f;
+//    float vx = 0.2f, vy = -0.6f;
+//
+//#pragma omp parallel for
+//    for (long long time = 0; time < N; ++time)
+//      grid->createByMutexLock(
+//          static_cast<std::intptr_t>(std::floor(px + vx * time)),
+//          static_cast<std::intptr_t>(std::floor(py + vy * time)), true);
+//
+//    std::atomic<std::size_t> counter{};
+//    grid->foreach ([&counter](auto x, auto y, auto &value) {
+//      if (value)
+//        counter++;
+//    });
+//    benchmark::DoNotOptimize(counter);
+//  }
+//}
+//
+//static void BM_PointerGrid_DoubleCheckMutexLock(benchmark::State &bm) {
+//  for (auto _ : bm) {
+//    auto grid = std::make_shared<PointerGrid<bool, (1 << 11), (1 << 8)>>();
+//    float px = -100.f, py = 100.f;
+//    float vx = 0.2f, vy = -0.6f;
+//
+//#pragma omp parallel for
+//    for (long long time = 0; time < N; ++time)
+//      grid->createByMutexLock(
+//          static_cast<std::intptr_t>(std::floor(px + vx * time)),
+//          static_cast<std::intptr_t>(std::floor(py + vy * time)), true);
+//
+//    std::atomic<std::size_t> counter{};
+//    grid->foreach ([&counter](auto x, auto y, auto &value) {
+//      if (value)
+//        counter++;
+//    });
+//    benchmark::DoNotOptimize(counter);
+//  }
+//}
+//
+//static void BM_PointerGrid_SpinLock(benchmark::State &bm) {
+//  for (auto _ : bm) {
+//    auto grid = std::make_shared<PointerGrid<bool, (1 << 11), (1 << 8)>>();
+//    float px = -100.f, py = 100.f;
+//    float vx = 0.2f, vy = -0.6f;
+//
+//#pragma omp parallel for
+//    for (long long time = 0; time < N; ++time)
+//      grid->createBySpinLock(
+//          static_cast<std::intptr_t>(std::floor(px + vx * time)),
+//          static_cast<std::intptr_t>(std::floor(py + vy * time)), true);
+//
+//    std::atomic<std::size_t> counter{};
+//    grid->foreach ([&counter](auto x, auto y, auto &value) {
+//      if (value)
+//        counter++;
+//    });
+//    benchmark::DoNotOptimize(counter);
+//  }
+//}
+//
+//static void BM_PointerGrid_Observer(benchmark::State &bm) {
+//  for (auto _ : bm) {
+//    auto grid = std::make_shared<PointerGrid<bool, (1 << 11), (1 << 8)>>();
+//    float px = -100.f, py = 100.f;
+//    float vx = 0.2f, vy = -0.6f;
+//
+//    auto accessor = grid->access();
+//#pragma omp parallel for firstprivate(accessor)
+//    for (long long time = 0; time < N; ++time)
+//      accessor.write(static_cast<std::intptr_t>(std::floor(px + vx * time)),
+//                     static_cast<std::intptr_t>(std::floor(py + vy * time)),
+//                     true);
+//
+//    std::atomic<std::size_t> counter{};
+//    grid->foreach ([&counter](auto x, auto y, auto &value) {
+//      if (value)
+//        counter++;
+//    });
+//    benchmark::DoNotOptimize(counter);
+//  }
+//}
 
 static void BM_int64_t(benchmark::State &bm) {
   for (auto _ : bm) {
@@ -1170,8 +1172,8 @@ static void BM_fixedpoint_uint8(benchmark::State &bm) {
 // BENCHMARK(BM_transpose_tiling_morton2d_stream);
 // BENCHMARK(BM_transpose_tiling_tbb);
 
-// BENCHMARK(BM_matrix_mul);
-// BENCHMARK(BM_matrix_mul_blocked);
+ //BENCHMARK(BM_matrix_mul);
+ //BENCHMARK(BM_matrix_mul_blocked);
 
 // BENCHMARK(BM_conv);
 // BENCHMARK(BM_conv_block);
@@ -1196,8 +1198,8 @@ static void BM_fixedpoint_uint8(benchmark::State &bm) {
 // BENCHMARK(BM_double_calc);
 // BENCHMARK(BM_float_calc);
 
-BENCHMARK(BM_floatingpoint);
-BENCHMARK(BM_fixedpoint_32);
-BENCHMARK(BM_fixedpoint_16);
-BENCHMARK(BM_fixedpoint_uint8);
+//BENCHMARK(BM_floatingpoint);
+//BENCHMARK(BM_fixedpoint_32);
+//BENCHMARK(BM_fixedpoint_16);
+//BENCHMARK(BM_fixedpoint_uint8);
 BENCHMARK_MAIN();
