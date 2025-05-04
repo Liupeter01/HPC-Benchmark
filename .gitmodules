@@ -7,3 +7,9 @@
 [submodule "external/libmorton"]
 	path = external/libmorton
 	url = https://github.com/Forceflow/libmorton
+	[submodule "external/libHPC"]
+	path = external/libHPC
+	url = https://github.com/Liupeter01/libHPC
+[submodule "libHPC"]
+	path = libHPC
+	url = https://github.com/Liupeter01/libHPC
