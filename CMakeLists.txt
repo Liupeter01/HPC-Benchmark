@@ -46,7 +46,6 @@ add_subdirectory(external/benchmark)
  add_subdirectory(external/libHPC)
 
 add_executable(benchmark_proj ${source_file} ${header_file})
-target_include_directories(benchmark_proj PUBLIC include )
-# ${LIBHPC_INCLUDE_DIRS}
+target_include_directories(benchmark_proj PUBLIC include ${LIBHPC_INCLUDE_DIRS})
 target_link_libraries(benchmark_proj PUBLIC ${OpenCV_LIBRARIES}
                                             benchmark::benchmark TBB::tbb libmorton hpc_array sparse_data_structure)
