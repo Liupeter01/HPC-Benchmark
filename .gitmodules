@@ -10,3 +10,6 @@
 [submodule "external/libHPC"]
 	path = external/libHPC
 	url = https://github.com/Liupeter01/libHPC
+[submodule "external/sse2neon"]
+	path = external/sse2neon
+	url = https://github.com/DLTcollab/sse2neon
