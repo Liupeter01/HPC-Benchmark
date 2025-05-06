@@ -4,10 +4,21 @@
 #include <cmath>
 #include <libmorton/morton.h>
 // #include <omp.h>
-#include <sse2neon.h>
 #include <tbb/blocked_range2d.h>
 #include <tbb/parallel_for.h>
+#include <tbb/spin_mutex.h>
 #include <vector>
+#if defined(__x86_64__) || defined(_WIN64)
+#include <immintrin.h>
+#include <xmmintrin.h >
+
+#elif defined(__arm__) || defined(__aarch64__)
+//#include <arm/neon.h>
+#include <sse2neon.h>
+//#include <x86/avx.h>
+//#include <x86/fma.h>
+//#include <x86/svml.h>
+#endif
 
 constexpr std::size_t m = 1 << 13;
 constexpr std::size_t n = 1 << 15;
@@ -842,48 +853,78 @@ std::vector<float> false_sharing(line);
 //   }
 // }
 
-static void BM_grid_unordered_block_XY_o1(benchmark::State &bm) {
-  for (auto _ : bm) {
-    auto grid = std::make_shared<sparse::RootGrid<
-        bool, sparse::HashBlock<sparse::DenseBlock<16, bool>>>>();
-    float px = -100.f, py = 100.f;
-    float vx = 0.2f, vy = -0.6f;
+static void BM_RootHashDense(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    auto grid = std::make_shared< sparse::RootGrid<bool, sparse::HashBlock<sparse::DenseBlock<16, bool>>>>();
+                    float px = -100.f, py = 100.f;
+                    float vx = 0.2f, vy = -0.6f;
 
-    for (std::size_t time = 0; time < N; ++time) {
-      px += vx;
-      py += vy;
-      grid->write(px, py, true);
-    }
+#pragma omp parallel for
+                    for (std::size_t time = 0; time < N; ++time) {
+                              grid->write(
+                                        static_cast<std::intptr_t>(std::floor(px + vx * time)),
+                                        static_cast<std::intptr_t>(std::floor(py + vy * time)), true);
+                    }
 
-    std::size_t counter{};
-    grid->foreach ([&counter](auto x, auto y, auto &value) {
-      if (value)
-        counter++;
-    });
-    benchmark::DoNotOptimize(counter);
-  }
+                    std::size_t counter{};
+                    grid->foreach([&counter](auto x, auto y, auto& value) {
+                              if (value)
+                                        counter++;
+                              });
+                    benchmark::DoNotOptimize(counter);
+          }
 }
 
-static void BM_PointerGrid_SpinLock(benchmark::State &bm) {
-  for (auto _ : bm) {
-    auto grid = std::make_shared<sparse::RootGrid<
-        bool,
-        sparse::PointerBlock<1 << 11, sparse::DenseBlock<1 << 4, bool>>>>();
-    float px = -100.f, py = 100.f;
-    float vx = 0.2f, vy = -0.6f;
+static void BM_RootPointerPointerDense(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    auto rppd = std::make_shared< sparse::RootGrid<
+                              bool,
+                              sparse::PointerBlock<1 << 10,
+                              sparse::PointerBlock<1 << 10,
+                              sparse::DenseBlock<16, bool>>>>>();
 
-    // #pragma omp parallel for
-    for (long long time = 0; time < N; ++time)
-      grid->write(static_cast<std::intptr_t>(px + vx * time),
-                  static_cast<std::intptr_t>(py + vy * time), true);
+                    float px = -100.f, py = 100.f;
+                    float vx = 0.2f, vy = -0.6f;
 
-    std::atomic<std::size_t> counter{};
-    grid->foreach ([&counter](auto x, auto y, auto &value) {
-      if (value)
-        counter++;
-    });
-    benchmark::DoNotOptimize(counter);
-  }
+#pragma omp parallel for
+                    for (long long time = 0; time < N; ++time)
+                              rppd->write(
+                                        static_cast<std::intptr_t>(std::floor(px + vx * time)),
+                                        static_cast<std::intptr_t>(std::floor(py + vy * time)), true);
+
+                    std::atomic<std::size_t> counter{};
+                    rppd->foreach([&counter](auto x, auto y, auto& value) {
+                              if (value)
+                                        counter++;
+                              });
+                    benchmark::DoNotOptimize(counter);
+          }
+}
+
+static void BM_RootHashPointerDense(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    auto  rhpd = std::make_shared< sparse::RootGrid<
+                              bool,
+                              sparse::HashBlock<
+                              sparse::PointerBlock<1 << 10,
+                              sparse::DenseBlock<16, bool>>>>>();
+
+                    float px = -100.f, py = 100.f;
+                    float vx = 0.2f, vy = -0.6f;
+
+#pragma omp parallel for
+                    for (long long time = 0; time < N; ++time)
+                              rhpd->write(
+                                        static_cast<std::intptr_t>(std::floor(px + vx * time)),
+                                        static_cast<std::intptr_t>(std::floor(py + vy * time)), true);
+
+                    std::atomic<std::size_t> counter{};
+                    rhpd->foreach([&counter](auto x, auto y, auto& value) {
+                              if (value)
+                                        counter++;
+                              });
+                    benchmark::DoNotOptimize(counter);
+          }
 }
 
 static void BM_int64_t(benchmark::State &bm) {
@@ -1025,21 +1066,84 @@ static void BM_fixedpoint_uint8(benchmark::State &bm) {
   }
 }
 
-BENCHMARK(BM_AOS_partical);
-BENCHMARK(BM_SOA_partical);
-BENCHMARK(BM_AOSOA_partical);
-BENCHMARK(BM_AOS_all_properties);
-BENCHMARK(BM_SOA_all_properties);
+static constexpr std::size_t max_n = 1 << 24;
+std::atomic_bool flag;
+std::mutex mutex;
+tbb::spin_mutex spin;
 
-BENCHMARK(BM_ordered);
-BENCHMARK(BM_random_64B);
-BENCHMARK(BM_random_4096B);
-BENCHMARK(BM_random_4KB_align);
-BENCHMARK(BM_random_64B);
-BENCHMARK(BM_random_64B_prefetch);
+static void BM_normal_wrong(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    std::size_t counter{};
+                    for (std::size_t i = 0; i < max_n; ++i) {
+                              counter++;
+                    }
+                    benchmark::DoNotOptimize(counter);
+          }
+}
 
-BENCHMARK(BM_read_and_write);
-BENCHMARK(BM_write);
+static void BM_mutex(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    std::size_t counter{};
+                    for (std::size_t i = 0; i < max_n; ++i) {
+                              std::lock_guard<std::mutex> _(mutex);
+                              counter++;
+                    }
+                    benchmark::DoNotOptimize(counter);
+          }
+}
+
+static void BM_spin_mutex(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    std::size_t counter{};
+                    for (std::size_t i = 0; i < max_n; ++i) {
+                              std::lock_guard<tbb::spin_mutex> _(spin);
+                              counter++;
+                    }
+                    benchmark::DoNotOptimize(counter);
+          }
+}
+
+static void BM_atomic(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    std::atomic<std::size_t> counter{0};
+
+                    for (std::size_t i = 0; i < max_n; ++i) {
+                              counter++;
+                    }
+                    benchmark::DoNotOptimize(counter);
+          }
+}
+
+
+static void BM_lockfree(benchmark::State& bm) {
+          for (auto _ : bm) {
+                    std::atomic<std::size_t> counter{ 0 };
+                    for (std::size_t i = 0; i < max_n; ++i) {
+                              std::size_t old = counter.load(std::memory_order_relaxed);
+                              while (!counter.compare_exchange_strong(old, old + 1,
+                                        std::memory_order_release,
+                                        std::memory_order_relaxed)) {
+                              }
+                    }
+                    benchmark::DoNotOptimize(counter);
+          }
+}
+
+//BENCHMARK(BM_AOS_partical);
+//BENCHMARK(BM_SOA_partical);
+//BENCHMARK(BM_AOSOA_partical);
+//BENCHMARK(BM_AOS_all_properties);
+//BENCHMARK(BM_SOA_all_properties);
+//
+//BENCHMARK(BM_ordered);
+//BENCHMARK(BM_random_64B);
+//BENCHMARK(BM_random_4096B);
+//BENCHMARK(BM_random_4KB_align);
+//BENCHMARK(BM_random_64B);
+//BENCHMARK(BM_random_64B_prefetch);
+//
+//BENCHMARK(BM_read_and_write);
+//BENCHMARK(BM_write);
 // BENCHMARK(BM_write_streamed);
 // BENCHMARK(BM_write_streamed_and_read);
 // BENCHMARK(BM_write_zero);
@@ -1079,20 +1183,27 @@ BENCHMARK(BM_write);
 
 // BENCHMARK(BM_false_sharing);
 // BENCHMARK(BM_no_false_sharing);
+
+BENCHMARK(BM_RootHashDense);
+BENCHMARK(BM_RootPointerPointerDense);
+BENCHMARK(BM_RootHashPointerDense);
 //
-// BENCHMARK(BM_grid_unordered_block_XY_o1);
-// BENCHMARK(BM_PointerGrid_SpinLock);
+//BENCHMARK(BM_int64_t);
+//BENCHMARK(BM_int32_t);
+//BENCHMARK(BM_int8_t);
+//BENCHMARK(BM_8bit);
+//
+//BENCHMARK(BM_double_calc);
+//BENCHMARK(BM_float_calc);
+//
+//BENCHMARK(BM_floatingpoint);
+//BENCHMARK(BM_fixedpoint_32);
+//BENCHMARK(BM_fixedpoint_16);
+//BENCHMARK(BM_fixedpoint_uint8);
 
-BENCHMARK(BM_int64_t);
-BENCHMARK(BM_int32_t);
-BENCHMARK(BM_int8_t);
-BENCHMARK(BM_8bit);
-
-BENCHMARK(BM_double_calc);
-BENCHMARK(BM_float_calc);
-
-BENCHMARK(BM_floatingpoint);
-BENCHMARK(BM_fixedpoint_32);
-BENCHMARK(BM_fixedpoint_16);
-BENCHMARK(BM_fixedpoint_uint8);
+//BENCHMARK(BM_normal_wrong)->Threads(8);
+//BENCHMARK(BM_mutex)->Threads(8);
+//BENCHMARK(BM_spin_mutex)->Threads(8);
+//BENCHMARK(BM_atomic)->Threads(8);
+//BENCHMARK(BM_lockfree)->Threads(8);
 BENCHMARK_MAIN();
