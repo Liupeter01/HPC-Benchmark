@@ -1,11 +1,13 @@
-﻿#include <cmath>
-#include <vector>
+﻿#include <HPCHighDimensionFlatArray.hpp>
 #include <SparseDS.hpp>
-#include <tbb/parallel_for.h>
-#include <libmorton/morton.h>
-#include <tbb/blocked_range2d.h>
 #include <benchmark/benchmark.h>
-#include <HPCHighDimensionFlatArray.hpp>
+#include <cmath>
+#include <libmorton/morton.h>
+// #include <omp.h>
+#include <sse2neon.h>
+#include <tbb/blocked_range2d.h>
+#include <tbb/parallel_for.h>
+#include <vector>
 
 constexpr std::size_t m = 1 << 13;
 constexpr std::size_t n = 1 << 15;
@@ -131,7 +133,7 @@ static void BM_AOSOA_all_properties(benchmark::State &bm) {
 }
 
 static void BM_ordered(benchmark::State &bm) {
-  for (auto &_ : bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
       benchmark::DoNotOptimize(arr[i]);
@@ -141,7 +143,7 @@ static void BM_ordered(benchmark::State &bm) {
 }
 
 static void BM_random(benchmark::State &bm) {
-  for (auto &_ : bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
       benchmark::DoNotOptimize(arr[rand() % n]);
@@ -151,7 +153,7 @@ static void BM_random(benchmark::State &bm) {
 }
 
 static void BM_random_64B(benchmark::State &bm) {
-  for (auto &_ : bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for
     for (std::size_t i = 0; i < n / 16; ++i) {
       auto r = rand() % (n / 16);
@@ -164,7 +166,7 @@ static void BM_random_64B(benchmark::State &bm) {
 }
 
 static void BM_random_64B_prefetch(benchmark::State &bm) {
-  for (auto &_ : bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for
     for (std::size_t i = 0; i < n / 16; ++i) {
       auto r = rand() % (n / 16);
@@ -180,7 +182,7 @@ static void BM_random_64B_prefetch(benchmark::State &bm) {
 
 constexpr uint64_t block = 4096;
 static void BM_random_4096B(benchmark::State &bm) {
-  for (auto &_ : bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for
     for (std::size_t i = 0; i < n / block; ++i) {
       auto r = rand() % (n / block);
@@ -197,7 +199,7 @@ static void BM_random_4KB_align(benchmark::State &bm) {
   float *a = (float *)_mm_malloc(n * sizeof(float), block);
   memset(a, 0, n * sizeof(float));
 
-  for (auto &_ : bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for
     for (std::size_t i = 0; i < n / block; ++i) {
       auto r = rand() % (n / block);
@@ -212,7 +214,7 @@ static void BM_random_4KB_align(benchmark::State &bm) {
 }
 
 static void BM_write(benchmark::State &bm) {
-  for (auto &_ : bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
       arr[i] = 1;
@@ -222,7 +224,7 @@ static void BM_write(benchmark::State &bm) {
 }
 
 static void BM_write_streamed(benchmark::State &bm) {
-  for (auto &_ : bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
       float value = 1;
@@ -233,7 +235,7 @@ static void BM_write_streamed(benchmark::State &bm) {
 }
 
 static void BM_write_streamed_and_read(benchmark::State &bm) {
-  for (auto &_ : bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
       float value = 1;
@@ -245,7 +247,7 @@ static void BM_write_streamed_and_read(benchmark::State &bm) {
 }
 
 static void BM_read_and_write(benchmark::State &bm) {
-  for (auto &_ : bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
       arr[i] = arr[i] + 1;
@@ -255,7 +257,7 @@ static void BM_read_and_write(benchmark::State &bm) {
 }
 
 static void BM_write_zero(benchmark::State &bm) {
-  for (auto &_ : bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
       arr[i] = 0;
@@ -265,7 +267,7 @@ static void BM_write_zero(benchmark::State &bm) {
 }
 
 static void BM_write_one(benchmark::State &bm) {
-  for (auto &_ : bm) {
+  for (auto _ : bm) {
 #pragma omp parallel for
     for (std::size_t i = 0; i < n; ++i) {
       arr[i] = 1;
@@ -276,7 +278,7 @@ static void BM_write_one(benchmark::State &bm) {
 
 static void BM_origin(benchmark::State &bm) {
   int *m = new int[n];
-  for (auto &_ : bm) {
+  for (auto _ : bm) {
     for (std::size_t i = 0; i < n; ++i) {
       m[i] = 1;
     }
@@ -286,7 +288,7 @@ static void BM_origin(benchmark::State &bm) {
 
 static void BM_init(benchmark::State &bm) {
   int *m = new int[n]{};
-  for (auto &_ : bm) {
+  for (auto _ : bm) {
     for (std::size_t i = 0; i < n; ++i) {
       m[i] = 1;
     }
@@ -584,68 +586,71 @@ static void BM_YXx_blur_tiling_prefetch_streamed_IPL(benchmark::State &bm) {
   }
 }
 
-hpc::HPCHighDimensionFlatArray<2, float, nblur, nblur, 32> a_avx(nx, ny);
-hpc::HPCHighDimensionFlatArray<2, float, 0, 0, 32> b_avx(nx, ny);
+// hpc::HPCHighDimensionFlatArray<2, float, nblur, nblur, 32> a_avx(nx, ny);
+// hpc::HPCHighDimensionFlatArray<2, float, 0, 0, 32> b_avx(nx, ny);
 
-static void BM_YXx_blur_tiling_prefetch_streamed_AVX2(benchmark::State &bm) {
-  for (auto _ : bm) {
-#pragma omp parallel for collapse(2)
-    for (int y = 0; y < ny; ++y) {
-      for (int x = 0; x < nx - 32 + 1; x += 32) {
-        __m256 res[4];
-        _mm_prefetch((const char *)&a_avx(y + nblur, x), _MM_HINT_T0);
-        _mm_prefetch((const char *)&a_avx(y + nblur, x + 16), _MM_HINT_T0);
-        for (int offset = 0; offset < 4; ++offset) {
-          res[offset] = _mm256_setzero_ps();
-        }
+// static void BM_YXx_blur_tiling_prefetch_streamed_AVX2(benchmark::State &bm) {
+//   for (auto _ : bm) {
+// #pragma omp parallel for collapse(2)
+//     for (int y = 0; y < ny; ++y) {
+//       for (int x = 0; x < nx - 32 + 1; x += 32) {
+//         __m256 res[4];
+//         _mm_prefetch((const char *)&a_avx(y + nblur, x), _MM_HINT_T0);
+//         _mm_prefetch((const char *)&a_avx(y + nblur, x + 16), _MM_HINT_T0);
+//         for (int offset = 0; offset < 4; ++offset) {
+//           res[offset] = _mm256_setzero_ps();
+//         }
 
-        for (int blur = -nblur; blur <= nblur; ++blur) {
-          for (int offset = 0; offset < 4; ++offset) {
-            res[offset] =
-                _mm256_add_ps(res[offset], _mm256_load_ps((const float *)&a_avx(
-                                               y + blur, x + offset * 8)));
-          }
-        }
-        for (int offset = 0; offset < 4; offset++) {
-          _mm256_stream_ps(&b_avx(y, x + offset * 8), res[offset]);
-        }
-      }
-    }
-    benchmark::DoNotOptimize(a);
-  }
-}
+//         for (int blur = -nblur; blur <= nblur; ++blur) {
+//           for (int offset = 0; offset < 4; ++offset) {
+//             res[offset] =
+//                 _mm256_add_ps(res[offset], _mm256_load_ps((const float
+//                 *)&a_avx(
+//                                                y + blur, x + offset * 8)));
+//           }
+//         }
+//         for (int offset = 0; offset < 4; offset++) {
+//           _mm256_stream_ps(&b_avx(y, x + offset * 8), res[offset]);
+//         }
+//       }
+//     }
+//     benchmark::DoNotOptimize(a);
+//   }
+// }
 
-static void
-BM_YXx_blur_tiling_prefetch_streamed_AVX2_in_advance(benchmark::State &bm) {
-  for (auto _ : bm) {
-#pragma omp parallel for collapse(2)
-    for (int y = 0; y < ny; ++y) {
-      for (int x = 0; x < nx - 32 + 1; x += 32) {
-        __m256 res[4];
-        _mm_prefetch((const char *)&a_avx(y + nblur, x + 32), _MM_HINT_T0);
-        _mm_prefetch((const char *)&a_avx(y + nblur, x + 16 + 32), _MM_HINT_T0);
+// static void
+// BM_YXx_blur_tiling_prefetch_streamed_AVX2_in_advance(benchmark::State &bm) {
+//   for (auto _ : bm) {
+// #pragma omp parallel for collapse(2)
+//     for (int y = 0; y < ny; ++y) {
+//       for (int x = 0; x < nx - 32 + 1; x += 32) {
+//         __m256 res[4];
+//         _mm_prefetch((const char *)&a_avx(y + nblur, x + 32), _MM_HINT_T0);
+//         _mm_prefetch((const char *)&a_avx(y + nblur, x + 16 + 32),
+//         _MM_HINT_T0);
 
-        for (int offset = 0; offset < 4; ++offset) {
-          res[offset] = _mm256_setzero_ps();
-        }
+//         for (int offset = 0; offset < 4; ++offset) {
+//           res[offset] = _mm256_setzero_ps();
+//         }
 
-        for (int blur = -nblur; blur <= nblur; ++blur) {
+//         for (int blur = -nblur; blur <= nblur; ++blur) {
 
-          for (int offset = 0; offset < 4; ++offset) {
-            res[offset] =
-                _mm256_add_ps(res[offset], _mm256_load_ps((const float *)&a_avx(
-                                               y + blur, x + offset * 8)));
-          }
-        }
+//           for (int offset = 0; offset < 4; ++offset) {
+//             res[offset] =
+//                 _mm256_add_ps(res[offset], _mm256_load_ps((const float
+//                 *)&a_avx(
+//                                                y + blur, x + offset * 8)));
+//           }
+//         }
 
-        for (int offset = 0; offset < 4; offset++) {
-          _mm256_stream_ps(&b_avx(y, x + offset * 8), res[offset]);
-        }
-      }
-    }
-    benchmark::DoNotOptimize(a);
-  }
-}
+//         for (int offset = 0; offset < 4; offset++) {
+//           _mm256_stream_ps(&b_avx(y, x + offset * 8), res[offset]);
+//         }
+//       }
+//     }
+//     benchmark::DoNotOptimize(a);
+//   }
+// }
 
 hpc::HPCHighDimensionFlatArray<2, float> a_t(nx, ny);
 hpc::HPCHighDimensionFlatArray<2, float> b_t(nx, ny);
@@ -714,25 +719,21 @@ static void BM_transpose_tiling_morton2d_stream(benchmark::State &bm) {
   }
 }
 
- static void BM_transpose_tiling_tbb(benchmark::State& bm) {
-           for (auto _ : bm) {
-                     tbb::parallel_for(tbb::blocked_range2d<std::size_t>(0,
-                     nx, blockSize, 0, ny, blockSize),
-                               [](tbb::blocked_range2d<std::size_t> &r) {
-                                         for (auto y = r.cols().begin(); y !=
-                                         r.cols().end(); ++y) {
-                                                   for (auto x =
-                                                   r.rows().begin(); x !=
-                                                   r.rows().end(); ++x) {
-                                                             b_t(x, y) =
-                                                             a_t(y, x);
-                                                   }
-                                         }
-
-                               }, tbb::simple_partitioner{});
-                     benchmark::DoNotOptimize(b_t);
-           }
- }
+static void BM_transpose_tiling_tbb(benchmark::State &bm) {
+  for (auto _ : bm) {
+    tbb::parallel_for(
+        tbb::blocked_range2d<std::size_t>(0, nx, blockSize, 0, ny, blockSize),
+        [](tbb::blocked_range2d<std::size_t> &r) {
+          for (auto y = r.cols().begin(); y != r.cols().end(); ++y) {
+            for (auto x = r.rows().begin(); x != r.rows().end(); ++x) {
+              b_t(x, y) = a_t(y, x);
+            }
+          }
+        },
+        tbb::simple_partitioner{});
+    benchmark::DoNotOptimize(b_t);
+  }
+}
 
 constexpr int size = 1 << 10;
 constexpr int matrix_block = 32;
@@ -814,37 +815,37 @@ static void BM_conv_block_unroll(benchmark::State &bm) {
   }
 }
 
-#include <omp.h>
 constexpr int line = 1 << 23;
 std::vector<float> false_sharing(line);
 
-static void BM_false_sharing(benchmark::State &bm) {
-  for (auto _ : bm) {
-    std::vector<int> temp(omp_get_max_threads());
-#pragma omp parallel for
-    for (int i = 0; i < line; ++i) {
-      temp[omp_get_thread_num()] += false_sharing[i];
-      benchmark::DoNotOptimize(temp);
-    }
-    benchmark::DoNotOptimize(temp);
-  }
-}
+// static void BM_false_sharing(benchmark::State &bm) {
+//   for (auto _ : bm) {
+//     std::vector<int> temp(omp_get_max_threads());
+// #pragma omp parallel for
+//     for (int i = 0; i < line; ++i) {
+//       temp[omp_get_thread_num()] += false_sharing[i];
+//       benchmark::DoNotOptimize(temp);
+//     }
+//     benchmark::DoNotOptimize(temp);
+//   }
+// }
 
-static void BM_no_false_sharing(benchmark::State &bm) {
-  for (auto _ : bm) {
-    std::vector<int> temp(omp_get_max_threads() * 4096);
-#pragma omp parallel for
-    for (int i = 0; i < line; ++i) {
-      temp[omp_get_thread_num() * 4096] += false_sharing[i];
-      benchmark::DoNotOptimize(temp);
-    }
-    benchmark::DoNotOptimize(temp);
-  }
-}
+// static void BM_no_false_sharing(benchmark::State &bm) {
+//   for (auto _ : bm) {
+//     std::vector<int> temp(omp_get_max_threads() * 4096);
+// #pragma omp parallel for
+//     for (int i = 0; i < line; ++i) {
+//       temp[omp_get_thread_num() * 4096] += false_sharing[i];
+//       benchmark::DoNotOptimize(temp);
+//     }
+//     benchmark::DoNotOptimize(temp);
+//   }
+// }
 
 static void BM_grid_unordered_block_XY_o1(benchmark::State &bm) {
   for (auto _ : bm) {
-    auto grid = std::make_shared< sparse::RootGrid<bool, sparse::HashBlock<sparse::DenseBlock<16, bool>>>>();
+    auto grid = std::make_shared<sparse::RootGrid<
+        bool, sparse::HashBlock<sparse::DenseBlock<16, bool>>>>();
     float px = -100.f, py = 100.f;
     float vx = 0.2f, vy = -0.6f;
 
@@ -865,21 +866,22 @@ static void BM_grid_unordered_block_XY_o1(benchmark::State &bm) {
 
 static void BM_PointerGrid_SpinLock(benchmark::State &bm) {
   for (auto _ : bm) {
-            auto grid = std::make_shared<  sparse::RootGrid<bool, sparse::PointerBlock<1 << 11, sparse::DenseBlock<1 << 4, bool>>>>();
+    auto grid = std::make_shared<sparse::RootGrid<
+        bool,
+        sparse::PointerBlock<1 << 11, sparse::DenseBlock<1 << 4, bool>>>>();
     float px = -100.f, py = 100.f;
     float vx = 0.2f, vy = -0.6f;
 
-//#pragma omp parallel for
+    // #pragma omp parallel for
     for (long long time = 0; time < N; ++time)
-              grid->write(
-                        static_cast<std::intptr_t>(px + vx * time),
-                        static_cast<std::intptr_t>(py + vy * time), true);
+      grid->write(static_cast<std::intptr_t>(px + vx * time),
+                  static_cast<std::intptr_t>(py + vy * time), true);
 
     std::atomic<std::size_t> counter{};
-    grid->foreach([&counter](auto x, auto y, auto& value) {
-              if (value)
-                        counter++;
-              });
+    grid->foreach ([&counter](auto x, auto y, auto &value) {
+      if (value)
+        counter++;
+    });
     benchmark::DoNotOptimize(counter);
   }
 }
@@ -1023,21 +1025,21 @@ static void BM_fixedpoint_uint8(benchmark::State &bm) {
   }
 }
 
- BENCHMARK(BM_AOS_partical);
- BENCHMARK(BM_SOA_partical);
- BENCHMARK(BM_AOSOA_partical);
- BENCHMARK(BM_AOS_all_properties);
- BENCHMARK(BM_SOA_all_properties);
+BENCHMARK(BM_AOS_partical);
+BENCHMARK(BM_SOA_partical);
+BENCHMARK(BM_AOSOA_partical);
+BENCHMARK(BM_AOS_all_properties);
+BENCHMARK(BM_SOA_all_properties);
 
- BENCHMARK(BM_ordered);
- BENCHMARK(BM_random_64B);
- BENCHMARK(BM_random_4096B);
- BENCHMARK(BM_random_4KB_align);
- BENCHMARK(BM_random_64B);
- BENCHMARK(BM_random_64B_prefetch);
+BENCHMARK(BM_ordered);
+BENCHMARK(BM_random_64B);
+BENCHMARK(BM_random_4096B);
+BENCHMARK(BM_random_4KB_align);
+BENCHMARK(BM_random_64B);
+BENCHMARK(BM_random_64B_prefetch);
 
- BENCHMARK(BM_read_and_write);
- BENCHMARK(BM_write);
+BENCHMARK(BM_read_and_write);
+BENCHMARK(BM_write);
 // BENCHMARK(BM_write_streamed);
 // BENCHMARK(BM_write_streamed_and_read);
 // BENCHMARK(BM_write_zero);
@@ -1068,26 +1070,26 @@ static void BM_fixedpoint_uint8(benchmark::State &bm) {
 // BENCHMARK(BM_transpose_tiling_morton2d_stream);
 // BENCHMARK(BM_transpose_tiling_tbb);
 
- //BENCHMARK(BM_matrix_mul);
- //BENCHMARK(BM_matrix_mul_blocked);
+// BENCHMARK(BM_matrix_mul);
+// BENCHMARK(BM_matrix_mul_blocked);
 
 // BENCHMARK(BM_conv);
 // BENCHMARK(BM_conv_block);
 // BENCHMARK(BM_conv_block_unroll);
 
- BENCHMARK(BM_false_sharing);
- BENCHMARK(BM_no_false_sharing);
-// 
-BENCHMARK(BM_grid_unordered_block_XY_o1);
-BENCHMARK(BM_PointerGrid_SpinLock);
+// BENCHMARK(BM_false_sharing);
+// BENCHMARK(BM_no_false_sharing);
+//
+// BENCHMARK(BM_grid_unordered_block_XY_o1);
+// BENCHMARK(BM_PointerGrid_SpinLock);
 
- BENCHMARK(BM_int64_t);
- BENCHMARK(BM_int32_t);
- BENCHMARK(BM_int8_t);
- BENCHMARK(BM_8bit);
+BENCHMARK(BM_int64_t);
+BENCHMARK(BM_int32_t);
+BENCHMARK(BM_int8_t);
+BENCHMARK(BM_8bit);
 
- BENCHMARK(BM_double_calc);
- BENCHMARK(BM_float_calc);
+BENCHMARK(BM_double_calc);
+BENCHMARK(BM_float_calc);
 
 BENCHMARK(BM_floatingpoint);
 BENCHMARK(BM_fixedpoint_32);
