@@ -10,3 +10,6 @@
 [submodule "external/libHPC"]
 	path = external/libHPC
 	url = https://github.com/Liupeter01/libHPC
+[submodule "external/tbb"]
+	path = external/tbb
+	url = https://github.com/uxlfoundation/oneTBB
