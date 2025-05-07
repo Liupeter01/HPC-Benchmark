@@ -49,5 +49,5 @@ add_executable(benchmark_proj ${source_file} ${header_file})
 target_include_directories(benchmark_proj PUBLIC include ${LIBHPC_INCLUDE_DIRS}
                                                  external/sse2neon)
 target_link_libraries(
-  benchmark_proj PUBLIC ${OpenCV_LIBRARIES} benchmark::benchmark TBB::tbb
+  benchmark_proj PUBLIC ${OpenCV_LIBRARIES} benchmark::benchmark 
                         libmorton hpc_array sparse_data_structure)
