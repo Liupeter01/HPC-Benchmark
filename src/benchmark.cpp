@@ -866,7 +866,7 @@ static void BM_RootHashDense(benchmark::State& bm) {
                                         static_cast<std::intptr_t>(std::floor(py + vy * time)), true);
                     }
 
-                    std::size_t counter{};
+                    std::atomic<std::size_t> counter{};
                     grid->foreach([&counter](auto x, auto y, auto& value) {
                               if (value)
                                         counter++;
